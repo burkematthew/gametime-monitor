@@ -1,0 +1,16 @@
+[Unit]
+Description=GameTime Tournament Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/home/pi/gametime-monitor/gametime-monitor migrate up
+ExecStart=/home/pi/gametime-monitor/gametime-monitor serve
+WorkingDirectory=/home/pi/gametime-monitor
+EnvironmentFile=/home/pi/gametime-monitor/.env
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

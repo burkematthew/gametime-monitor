@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Raspberry Pi
+    runs-on: self-hosted
+    environment: production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Write GCP credentials file
+        run: |
+          mkdir -p ${{ github.workspace }}/.secrets
+          echo '${{ secrets.GCP_KEY_JSON }}' > ${{ github.workspace }}/.secrets/gcp-key.json
+          chmod 600 ${{ github.workspace }}/.secrets/gcp-key.json
+
+      - name: Deploy with Docker Compose
+        run: docker compose up -d --build --remove-orphans
+        env:
+          GCP_KEY_FILE: ${{ github.workspace }}/.secrets/gcp-key.json
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
+          TEAM_NAME: ${{ secrets.TEAM_NAME }}
+          SCHEDULE_URL: ${{ secrets.SCHEDULE_URL }}
+
+      - name: Verify containers are healthy
+        run: |
+          sleep 10
+          docker compose ps
+          docker compose logs --tail=20 app
+
+      - name: Clean up credentials file
+        if: always()
+        run: rm -rf ${{ github.workspace }}/.secrets
