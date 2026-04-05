@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-gametime}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: ${DB_NAME:-gametime}
+    secrets:
+      - db_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gametime}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-gametime}
+      DB_NAME: ${DB_NAME:-gametime}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp_key
+      CALENDAR_ID: ${CALENDAR_ID:?Set CALENDAR_ID}
+      TEAM_NAME: ${TEAM_NAME:?Set TEAM_NAME}
+      SCHEDULE_URL: ${SCHEDULE_URL:?Set SCHEDULE_URL}
+      SHEET_NAME: ${SHEET_NAME:-10u}
+    secrets:
+      - db_password
+      - gcp_key
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - db
+      - egress
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+secrets:
+  db_password:
+    environment: DB_PASSWORD
+  gcp_key:
+    file: ${GCP_KEY_FILE:?Set GCP_KEY_FILE}
+
+networks:
+  db:
+    driver: bridge
+    internal: true
+  egress:
+    driver: bridge
+
+volumes:
+  pgdata:
